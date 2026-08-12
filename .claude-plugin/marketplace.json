@@ -1,0 +1,16 @@
+{
+  "name": "cross-model-adversarial-pass",
+  "owner": { "name": "Richard Schmidt" },
+  "metadata": {
+    "description": "Marketplace for the CAP plugin — cross-model adversarial review for Claude Code."
+  },
+  "plugins": [
+    {
+      "name": "cross-model-adversarial-pass",
+      "source": "./",
+      "description": "CAP — run OpenAI Codex and a fresh Claude subagent as parallel adversarial reviewers on a design, PR, or production-readiness gate, then adjudicate both. Always asks whether there is a simpler path.",
+      "license": "MIT",
+      "homepage": "https://github.com/RHSTheSecond/cross-model-adversarial-pass"
+    }
+  ]
+}

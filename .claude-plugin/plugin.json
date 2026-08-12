@@ -1,0 +1,8 @@
+{
+  "name": "cross-model-adversarial-pass",
+  "version": "1.0.0",
+  "description": "CAP — run OpenAI Codex and a fresh Claude subagent as parallel adversarial reviewers on a design, PR, or production-readiness gate, then adjudicate both. Always asks whether there is a simpler path.",
+  "author": { "name": "Richard Schmidt" },
+  "license": "MIT",
+  "homepage": "https://github.com/RHSTheSecond/cross-model-adversarial-pass"
+}

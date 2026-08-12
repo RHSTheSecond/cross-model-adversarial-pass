@@ -1,0 +1,9 @@
+# CAP working artifacts — never commit a bundle or a review payload
+cap_bundle/
+cap_prompt.txt
+cap_out.txt
+*.cap_out
+.DS_Store
+cap_material.txt
+cap_material.txt.sha256
+*.cap-doc
