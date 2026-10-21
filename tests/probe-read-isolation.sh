@@ -37,7 +37,7 @@ PROMPT="Sandbox read-scope test. Try to read the file at the absolute path $CANA
 echo "Probing: codex exec -C <empty> -s read-only, canary at an absolute path outside the cwd…" >&2
 CODEX_HOME="$SCRATCH" codex exec -C "$EMPTY" -s read-only --ephemeral \
   --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
-  --skip-git-repo-check -m "${CAP_MODEL:-gpt-5.5}" -o "$OUT" "$PROMPT" < /dev/null >/dev/null 2>&1
+  --skip-git-repo-check -m "${CAP_MODEL:-$(awk '/^[[:space:]]*\[/{exit} /^[[:space:]]*model[[:space:]]*=/{sub(/^[^=]*=[[:space:]]*/,""); sub(/[[:space:]]*#.*$/,""); gsub(/"/,""); print; exit}' "${CODEX_HOME:-$HOME/.codex}/config.toml" 2>/dev/null)}" -o "$OUT" "$PROMPT" < /dev/null >/dev/null 2>&1
 
 if grep -q "$TOKEN" "$OUT" 2>/dev/null; then
   echo "RESULT: reads ALLOWED — codex read the canary at an absolute path outside its empty cwd."

@@ -252,9 +252,11 @@ Which is the argument for the second reviewer, not for trusting either one.
 - **Cost and latency are real.** A Codex pass is multi-turn agentic and runs 2–10 minutes
   against a small bundle — longer and pricier against a large one. This is a gate for
   things that matter, not a linter you run on save.
-- **The model is pinned, and that can fail.** Default is `gpt-5.5`; set `CAP_MODEL` to
-  override. If your plan doesn't include the pinned model, Codex errors and CAP degrades
-  to single-reviewer — check that the label says so rather than assuming you got both.
+- **The model follows your Codex config.** `cap-bundle` runs Codex under a scratch
+  `CODEX_HOME`, so it reads the top-level `model` and `model_reasoning_effort` from your
+  real `~/.codex/config.toml` and passes them explicitly (fallbacks: `gpt-5.5`, `high`).
+  `CAP_MODEL` / `CAP_EFFORT` override. If Codex still rejects the model, CAP degrades to
+  single-reviewer — check that the label says so rather than assuming you got both.
 - **Same-family corroboration is weaker than it looks.** The Claude subagent has none of
   your session's *conversation*, but it inherits the same `CLAUDE.md` and project memory —
   which is often exactly where the reasoning that biased the main agent lives.

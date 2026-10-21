@@ -48,7 +48,10 @@
 #   --dry-run       Build + gate + write the document. Send NOTHING. Needs no codex.
 #   --allow PATH    Waive the secret gate for ONE bundle-relative path you have READ.
 #   --max-bytes N   Refuse if the document exceeds N bytes (default 2000000).
-#   --model NAME    Override the model (or set CAP_MODEL). Default: gpt-5.5
+#   --model NAME    Override the model (or set CAP_MODEL). Default: the top-level
+#                   `model` in $CODEX_HOME/config.toml (the scratch CODEX_HOME hides it
+#                   from codex), else gpt-5.5. Reasoning effort likewise: CAP_EFFORT,
+#                   else config.toml model_reasoning_effort, else high.
 #
 # Exit codes: 0 ok · 1 usage/precondition · 2 secrets or unsafe input · 3 codex failed
 #
@@ -93,7 +96,18 @@ case "${1:-}" in
 esac
 
 PROMPT="" OUT="" MODE="" DRY=0 DOC="" MAX_BYTES=2000000
-MODEL="${CAP_MODEL:-gpt-5.5}"
+# The send step runs codex under a scratch CODEX_HOME, so codex never sees the user's
+# config.toml. Read its top-level `model` here, or every login whose plan lacks the
+# hardcoded fallback fails at send time.
+config_key() {
+  local cfg="${CODEX_HOME:-$HOME/.codex}/config.toml"
+  [[ -f "$cfg" ]] || return 0
+  awk -v k="$1" '/^[[:space:]]*\[/{exit} $0 ~ "^[[:space:]]*"k"[[:space:]]*=" {sub(/^[^=]*=[[:space:]]*/,""); sub(/[[:space:]]*#.*$/,""); gsub(/"/,""); print; exit}' "$cfg"
+}
+MODEL="${CAP_MODEL:-$(config_key model)}"
+MODEL="${MODEL:-gpt-5.5}"
+EFFORT="${CAP_EFFORT:-$(config_key model_reasoning_effort)}"
+EFFORT="${EFFORT:-high}"
 PATHS=()
 ALLOW=()
 need_val() { [[ $# -ge 2 && -n "${2:-}" ]] || die "$1 needs a value"; }
@@ -154,12 +168,12 @@ if [[ "$CMD" == "send" ]]; then
   SCRATCH_HOME="$WORK/codex_home"; mkdir -p "$SCRATCH_HOME"
   cp "$CODEX_HOME_ORIG/auth.json" "$SCRATCH_HOME/auth.json"
   STDIN="$WORK/stdin.txt"; cat "$PROMPT" "$DOC_SENT" > "$STDIN"
-  say "sending $(wc -c < "$DOC_SENT" | tr -d ' ') bytes of material to OpenAI (model: $MODEL) — 2-10 minutes"
+  say "sending $(wc -c < "$DOC_SENT" | tr -d ' ') bytes of material to OpenAI (model: $MODEL, effort: $EFFORT) — 2-10 minutes"
   set +e
   CODEX_HOME="$SCRATCH_HOME" codex exec \
     -C "$EMPTY" -s read-only --ephemeral \
     --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
-    --skip-git-repo-check -m "$MODEL" -o "$OUT" - < "$STDIN"
+    --skip-git-repo-check -m "$MODEL" -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
   RC=$?
   set -e
   OUT_BYTES=$(wc -c < "$OUT" 2>/dev/null | tr -d ' ' || echo 0)
@@ -421,12 +435,12 @@ SCRATCH_HOME="$WORK/codex_home"; mkdir -p "$SCRATCH_HOME"
 cp "$CODEX_HOME_ORIG/auth.json" "$SCRATCH_HOME/auth.json"
 STDIN="$WORK/stdin.txt"; cat "$PROMPT" "$DEST" > "$STDIN"
 
-say "sending $DOC_BYTES bytes of material to OpenAI (model: $MODEL) — 2-10 minutes"
+say "sending $DOC_BYTES bytes of material to OpenAI (model: $MODEL, effort: $EFFORT) — 2-10 minutes"
 set +e
 CODEX_HOME="$SCRATCH_HOME" codex exec \
   -C "$EMPTY" -s read-only --ephemeral \
   --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
-  --skip-git-repo-check -m "$MODEL" -o "$OUT" - < "$STDIN"
+  --skip-git-repo-check -m "$MODEL" -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
 RC=$?
 set -e
 OUT_BYTES=$(wc -c < "$OUT" 2>/dev/null | tr -d ' ' || echo 0)
