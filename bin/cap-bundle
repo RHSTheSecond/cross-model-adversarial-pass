@@ -50,8 +50,11 @@
 #   --max-bytes N   Refuse if the document exceeds N bytes (default 2000000).
 #   --model NAME    Override the model (or set CAP_MODEL). Default: the top-level
 #                   `model` in $CODEX_HOME/config.toml (the scratch CODEX_HOME hides it
-#                   from codex), else gpt-5.5. Reasoning effort likewise: CAP_EFFORT,
-#                   else config.toml model_reasoning_effort, else high.
+#                   from codex), else the first model in the live catalog OpenAI serves
+#                   to this login (`codex debug models`, no tokens spent): the one Codex
+#                   itself would pick, so it is always on the user's plan. Reasoning
+#                   effort: CAP_EFFORT, else config.toml model_reasoning_effort, else
+#                   xhigh when the chosen model supports it, else high.
 #
 # Exit codes: 0 ok · 1 usage/precondition · 2 secrets or unsafe input · 3 codex failed
 #
@@ -105,9 +108,32 @@ config_key() {
   awk -v k="$1" '/^[[:space:]]*\[/{exit} $0 ~ "^[[:space:]]*"k"[[:space:]]*=" {sub(/^[^=]*=[[:space:]]*/,""); sub(/[[:space:]]*#.*$/,""); gsub(/"/,""); print; exit}' "$cfg"
 }
 MODEL="${CAP_MODEL:-$(config_key model)}"
-MODEL="${MODEL:-gpt-5.5}"
 EFFORT="${CAP_EFFORT:-$(config_key model_reasoning_effort)}"
-EFFORT="${EFFORT:-high}"
+# No model or effort chosen: read the catalog OpenAI serves to this login and take its first
+# listed model (what Codex picks on its own) with the deepest of xhigh/high it supports.
+# Codex's own default effort under a bare CODEX_HOME is "none", useless for a review.
+# jq or python3 parse it; with neither, Codex picks the model and effort falls back to high.
+pick_defaults() {  # $1 = scratch CODEX_HOME holding auth.json only
+  [[ -z "$MODEL" || -z "$EFFORT" ]] || return 0
+  local cat="" sel=""
+  cat="$(CODEX_HOME="$1" codex debug models </dev/null 2>/dev/null)" || cat=""
+  if [[ -n "$cat" ]]; then
+    if command -v jq >/dev/null 2>&1; then
+      sel="$(jq -r --arg m "$MODEL" '[.models[] | select(.visibility=="list")] | sort_by(.priority)
+        | (map(select(.slug==$m)) + .)[0] | "\(.slug) ,\([.supported_reasoning_levels[].effort] | join(",")),"' <<<"$cat" 2>/dev/null)" || sel=""
+    elif command -v python3 >/dev/null 2>&1; then
+      sel="$(python3 -c 'import json,sys
+m=sys.argv[1]; ms=sorted((x for x in json.load(sys.stdin)["models"] if x.get("visibility")=="list"),key=lambda x:x.get("priority",99))
+x=([y for y in ms if y["slug"]==m]+ms)[0]; print(x["slug"],","+",".join(l["effort"] for l in x.get("supported_reasoning_levels",[]))+",")' "$MODEL" <<<"$cat" 2>/dev/null)" || sel=""
+    fi
+  fi
+  local slug="" levels=""
+  [[ "$sel" == *" ,"* ]] && { slug="${sel%% *}"; levels="${sel#* }"; }
+  MODEL="${MODEL:-$slug}"
+  if [[ -z "$EFFORT" ]]; then
+    if [[ -n "$MODEL" && "$MODEL" == "$slug" && "$levels" == *,xhigh,* ]]; then EFFORT=xhigh; else EFFORT=high; fi
+  fi
+}
 PATHS=()
 ALLOW=()
 need_val() { [[ $# -ge 2 && -n "${2:-}" ]] || die "$1 needs a value"; }
@@ -168,12 +194,14 @@ if [[ "$CMD" == "send" ]]; then
   SCRATCH_HOME="$WORK/codex_home"; mkdir -p "$SCRATCH_HOME"
   cp "$CODEX_HOME_ORIG/auth.json" "$SCRATCH_HOME/auth.json"
   STDIN="$WORK/stdin.txt"; cat "$PROMPT" "$DOC_SENT" > "$STDIN"
-  say "sending $(wc -c < "$DOC_SENT" | tr -d ' ') bytes of material to OpenAI (model: $MODEL, effort: $EFFORT) — 2-10 minutes"
+  pick_defaults "$SCRATCH_HOME"
+  MARGS=(); [[ -n "$MODEL" ]] && MARGS=(-m "$MODEL")
+  say "sending $(wc -c < "$DOC_SENT" | tr -d ' ') bytes of material to OpenAI (model: ${MODEL:-Codex default for this login}, effort: $EFFORT) — 2-10 minutes"
   set +e
   CODEX_HOME="$SCRATCH_HOME" codex exec \
     -C "$EMPTY" -s read-only --ephemeral \
     --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
-    --skip-git-repo-check -m "$MODEL" -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
+    --skip-git-repo-check ${MARGS[@]+"${MARGS[@]}"} -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
   RC=$?
   set -e
   OUT_BYTES=$(wc -c < "$OUT" 2>/dev/null | tr -d ' ' || echo 0)
@@ -435,12 +463,14 @@ SCRATCH_HOME="$WORK/codex_home"; mkdir -p "$SCRATCH_HOME"
 cp "$CODEX_HOME_ORIG/auth.json" "$SCRATCH_HOME/auth.json"
 STDIN="$WORK/stdin.txt"; cat "$PROMPT" "$DEST" > "$STDIN"
 
-say "sending $DOC_BYTES bytes of material to OpenAI (model: $MODEL, effort: $EFFORT) — 2-10 minutes"
+pick_defaults "$SCRATCH_HOME"
+MARGS=(); [[ -n "$MODEL" ]] && MARGS=(-m "$MODEL")
+say "sending $DOC_BYTES bytes of material to OpenAI (model: ${MODEL:-Codex default for this login}, effort: $EFFORT) — 2-10 minutes"
 set +e
 CODEX_HOME="$SCRATCH_HOME" codex exec \
   -C "$EMPTY" -s read-only --ephemeral \
   --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
-  --skip-git-repo-check -m "$MODEL" -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
+  --skip-git-repo-check ${MARGS[@]+"${MARGS[@]}"} -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
 RC=$?
 set -e
 OUT_BYTES=$(wc -c < "$OUT" 2>/dev/null | tr -d ' ' || echo 0)

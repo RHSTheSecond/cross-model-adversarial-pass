@@ -252,9 +252,13 @@ Which is the argument for the second reviewer, not for trusting either one.
 - **Cost and latency are real.** A Codex pass is multi-turn agentic and runs 2–10 minutes
   against a small bundle — longer and pricier against a large one. This is a gate for
   things that matter, not a linter you run on save.
-- **The model follows your Codex config.** `cap-bundle` runs Codex under a scratch
-  `CODEX_HOME`, so it reads the top-level `model` and `model_reasoning_effort` from your
-  real `~/.codex/config.toml` and passes them explicitly (fallbacks: `gpt-5.5`, `high`).
+- **The model follows your plan.** `cap-bundle` runs Codex under a scratch `CODEX_HOME`,
+  so it reads the top-level `model` and `model_reasoning_effort` from your real
+  `~/.codex/config.toml` and passes them explicitly. With no `model` set, it asks Codex for
+  the catalog OpenAI serves to your login (`codex debug models`, no tokens spent) and uses
+  the first listed model, the one Codex itself would pick, so a $20 plan and a Pro plan
+  each get the best model they include. Effort with none set: `xhigh` when that model
+  supports it, else `high` (Codex's own default under a bare home is `none`).
   `CAP_MODEL` / `CAP_EFFORT` override. If Codex still rejects the model, CAP degrades to
   single-reviewer — check that the label says so rather than assuming you got both.
 - **Same-family corroboration is weaker than it looks.** The Claude subagent has none of
@@ -293,6 +297,6 @@ Shared as-is because people kept asking for it. Issues and PRs are welcome; no s
 or response time is promised. If you build something better on top of it, I'd genuinely
 like to see it.
 
-Tested against: Codex CLI with `gpt-5.5`, Claude Code, 2026-07-30.
+Tested against: Codex CLI 0.154 (macOS) and 0.163 (native Windows, Git Bash) with the login's default model, Claude Code, 2026-10-21.
 
 — [Richard Schmidt](https://richardschmidt.ai)
