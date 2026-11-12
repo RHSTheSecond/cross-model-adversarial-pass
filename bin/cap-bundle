@@ -200,7 +200,7 @@ if [[ "$CMD" == "send" ]]; then
   set +e
   CODEX_HOME="$SCRATCH_HOME" codex exec \
     -C "$EMPTY" -s read-only --ephemeral \
-    --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
+    --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 -c skills.include_instructions=false \
     --skip-git-repo-check ${MARGS[@]+"${MARGS[@]}"} -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
   RC=$?
   set -e
@@ -469,7 +469,7 @@ say "sending $DOC_BYTES bytes of material to OpenAI (model: ${MODEL:-Codex defau
 set +e
 CODEX_HOME="$SCRATCH_HOME" codex exec \
   -C "$EMPTY" -s read-only --ephemeral \
-  --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 \
+  --ignore-user-config --ignore-rules -c project_doc_max_bytes=0 -c skills.include_instructions=false \
   --skip-git-repo-check ${MARGS[@]+"${MARGS[@]}"} -c model_reasoning_effort="$EFFORT" -o "$OUT" - < "$STDIN"
 RC=$?
 set -e
